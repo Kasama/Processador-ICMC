@@ -530,13 +530,6 @@ begin
 -- JMP Condition: (UNconditional, EQual, Not Equal, Zero, Not Zero, CarRY, Not CarRY, GReater, LEsser, Equal or Greater, Equal or Lesser, OVerflow, Not OVerflow, Negative, DIVbyZero, NOT USED)	
 --========================================================================
 			IF(IR(15 DOWNTO 10) = CALL) THEN 
-				
-				
-					state := exec;
-				ELSE
-					
-					state := fetch;
-				END IF;
 			END IF;
 
 --========================================================================
