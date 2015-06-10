@@ -413,15 +413,27 @@ begin
 
 --========================================================================		
 			IF(IR(15 DOWNTO 10) = MOV) THEN 
-			
-			  
+				if(IR(1 downto 0) = "01") then
+					selM2 := sSP;
+					LoadReg(RX) := '1';
+				elsif(IR(1 downto 0) = "11") then
+					M4 := REG(RX);
+					LoadSP := '1';
+				else
+					M4 := REG(RY);
+					selM2 := sM4;
+					LoadReg(RX) := '1';
+				end if;				
 				state := fetch;
 			END IF;
 --========================================================================
 -- STORE   DIReto			M[END] <- RX
 --========================================================================			
 			IF(IR(15 DOWNTO 10) = STORE) THEN  -- Busca o endereco
-				
+				M1 <= PC;
+				RW <= '0';
+				LoadMAR := '1';
+				IncPC := '1';
 				state := exec;  -- Vai para o estado de Executa para gravar Registrador no endereco
 			END IF;					
 		
@@ -429,7 +441,11 @@ begin
 -- STORE indexado por registrador 			M[RX] <- RY
 --========================================================================		
 			IF(IR(15 DOWNTO 10) = STOREINDEX) THEN 
-				
+				M4 := REG(RX);
+				M1 <= M4;
+				RW <= '1';
+				M3 := REG(RY);
+				M5 <= M3;
 				state := fetch;
 			END IF;					
 		
@@ -437,7 +453,10 @@ begin
 -- LOAD Direto  			RX <- M[End]
 --========================================================================		
 			IF(IR(15 DOWNTO 10) = LOAD) THEN -- Busca o endereco
-				
+				M1 <= PC;
+				Rw <= '0';
+				LoadMAR := '1';
+				IncPC := '1';
 				state := exec;  -- Vai para o estado de Executa para buscar o dado do endereco
 			END IF;			
 			
@@ -457,7 +476,11 @@ begin
 -- LOAD Indexado por registrador 			RX <- M(RY)
 --========================================================================		
 			IF(IR(15 DOWNTO 10) = LOADINDEX) THEN
-				
+				M4 := REG(RY);
+				M1 <= M4;
+				RW <= '0';
+				selM2 := sMeM;
+				LoadReg(RX) := '1';
 				state := fetch;
 			END IF;					
 		
@@ -465,7 +488,14 @@ begin
 -- LOGIC OPERATION ('SHIFT', and 'CMP'  NOT INCLUDED)  			RX <- RY (?) RZ
 --========================================================================		
 			IF(IR(15 DOWNTO 14) = LOGIC AND IR(13 DOWNTO 10) /= SHIFT AND IR(13 DOWNTO 10) /= CMP) THEN 
-				
+				M3 := REG(RY);
+				M4 := REG(RZ);
+				X <= M3;
+				Y <= M4;
+				OP(5 downto 0) <= IR(15 downto 10);
+				OP(6) <= '0';
+				selM2 := sULA;
+				LoadReg(RX) := '1';
 				state := fetch;
 			END IF;			
 		
@@ -544,7 +574,14 @@ begin
 -- ARITH OPERATION ('INC' NOT INCLUDED) 			RX <- RY (?) RZ
 --========================================================================
 			IF(IR(15 DOWNTO 14) = ARITH AND IR(13 DOWNTO 10) /= INC) THEN
-				
+				M3 := REG(RY);
+				M4 := REG(RZ);
+				X <= M3;
+				Y <= M4;
+				OP(5 downto 0) <= IR(15 downto 10);
+				OP(6) <= IR(0);
+				selM2 := sULA;
+				LoadReg(RX) := '1';
 				state := fetch;
 			END IF;
 			
@@ -552,7 +589,19 @@ begin
 -- INC/DEC			RX <- RX (+ or -) 1
 --========================================================================			
 			IF(IR(15 DOWNTO 14) = ARITH AND (IR(13 DOWNTO 10) = INC))	THEN
-				
+				M3 := REG(RX);
+				M4 := x"0001";
+				X <= M3;
+				Y <= M4;
+				OP(5 downto 4) <= ARITH;
+				if (IR(6) = '0') then
+					OP(3 downto 0) <= ADD;
+				else
+					OP(3 downto 0) <= SUB;
+				end if;
+				OP(6) <= '0';
+				selM2 := sULA;
+				LoadReg(RX) := '1';
 				state := fetch;
 			END IF;
 			
@@ -613,7 +662,10 @@ begin
 -- EXEC STORE DIReto 			M[END] <- RX
 --========================================================================
 			IF(IR(15 DOWNTO 10) = STORE) THEN 
-				
+				M1 <= MAR;
+				RW <= '1';
+				M3 := REG(RX);
+				M5 <= M3;
 				state := fetch;
 			END IF;
 						
@@ -621,7 +673,10 @@ begin
 -- EXEC LOAD DIReto  			RX <- M[END]
 --========================================================================
 			IF(IR(15 DOWNTO 10) = LOAD) THEN
-				
+				M1 <= MAR;
+				Rw <= '0';
+				selM2 := sMeM;
+				LoadReg(RX) := '1';
 				state := fetch;
 			END IF;
 			
