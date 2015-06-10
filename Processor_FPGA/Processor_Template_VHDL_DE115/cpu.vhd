@@ -34,7 +34,7 @@ end cpu;
 
 ARCHITECTURE main of cpu is
 
-	TYPE STATES			is (fetch, decode, exec, halted);					-- Estados da Maquina de Controle do Processador
+	TYPE STATES			is (fetch, decode, exec, rtsExec, halted);			-- Estados da Maquina de Controle do Processador
 	TYPE Registers		is array(0 to 7) of STD_LOGIC_VECTOR(15 downto 0);  -- Banco de Registradores
 	TYPE LoadRegisters	is array(0 to 7) of std_LOGIC;						-- Sinais de LOAD dos Registradores do Banco
 
@@ -225,6 +225,9 @@ process(clk, reset)
 	variable RX : integer;   
 	variable RY : integer;
 	variable RZ : integer;
+
+	-- Jump Condition
+	variable JCOND : STD_LOGIC_VECTOR(3 downto 0);
 	
 	
 begin
@@ -305,6 +308,9 @@ begin
 		RX := conv_integer(IR(9 downto 7));
 		RY := conv_integer(IR(6 downto 4));
 		RZ := conv_integer(IR(3 downto 1));
+
+		-- Variavel da condição de jump
+		JCOND := IR(9 downto 6);
 	
 		-- Selecao do Mux2
 		if (selM2 = sULA) 		THEN M2 := RESULT;
@@ -503,7 +509,14 @@ begin
 -- CMP		RX, RY
 --========================================================================		
 			IF(IR(15 DOWNTO 14) = LOGIC AND IR(13 DOWNTO 10) = CMP) THEN 
-				
+				M3 := Reg(RX);
+				M4 := Reg(RY);
+				X <= M3;
+				Y <= M4;
+				OP(6) <= '0';
+				OP(5 downto 4) <= LOGIC;
+				OP(3 downto 0) <= CMP;
+				selM6 := sULA;
 				state := fetch;
 			END IF;
 		
@@ -534,7 +547,29 @@ begin
 -- JMP Condition: (UNconditional, EQual, Not Equal, Zero, Not Zero, CarRY, Not CarRY, GReater, LEsser, Equal or Greater, Equal or Lesser, OVerflow, Not OVerflow, Negative, DIVbyZero, NOT USED)	
 --========================================================================		
 			IF(IR(15 DOWNTO 10) = JMP) THEN 
-				
+				if (
+					( JCOND = "0000") OR				  -- Unconditional
+					((JCOND = "0001") AND FR(2) = '1') OR -- JEQ
+					((JCOND = "0010") AND FR(2) = '0') OR -- JNE
+					((JCOND = "0011") AND FR(3) = '1') OR -- JZ
+					((JCOND = "0100") AND FR(3) = '0') OR -- JNZ
+					((JCOND = "0101") AND FR(4) = '1') OR -- J Carry
+					((JCOND = "0110") AND FR(4) = '0') OR -- J N Carry
+					((JCOND = "0111") AND FR(0) = '1') OR -- JGR
+					((JCOND = "1000") AND FR(1) = '1') OR -- J Less Than
+					((JCOND = "1001") AND FR(1) = '0') OR -- JGR
+					((JCOND = "1010") AND FR(0) = '0') OR -- J Less or eq to
+					((JCOND = "1011") AND FR(5) = '1') OR -- JOV
+					((JCOND = "1100") AND FR(5) = '0') OR -- JNOV
+					((JCOND = "1101") AND FR(9) = '1') OR -- J Negative
+					((JCOND = "1110") AND FR(6) = '1')    -- JDIVZ
+				) then
+					M1 <= PC;
+					RW <= '0';
+					LoadPC := '1';
+				else
+					IncPC := '1';
+				end if;
 				state := fetch;
 			END IF;
 
@@ -560,14 +595,39 @@ begin
 -- JMP Condition: (UNconditional, EQual, Not Equal, Zero, Not Zero, CarRY, Not CarRY, GReater, LEsser, Equal or Greater, Equal or Lesser, OVerflow, Not OVerflow, Negative, DIVbyZero, NOT USED)	
 --========================================================================
 			IF(IR(15 DOWNTO 10) = CALL) THEN 
+				if (
+					( JCOND = "0000") OR				  -- Unconditional
+					((JCOND = "0001") AND FR(2) = '1') OR -- JEQ
+					((JCOND = "0010") AND FR(2) = '0') OR -- JNE
+					((JCOND = "0011") AND FR(3) = '1') OR -- JZ
+					((JCOND = "0100") AND FR(3) = '0') OR -- JNZ
+					((JCOND = "0101") AND FR(4) = '1') OR -- J Carry
+					((JCOND = "0110") AND FR(4) = '0') OR -- J N Carry
+					((JCOND = "0111") AND FR(0) = '1') OR -- JGR
+					((JCOND = "1000") AND FR(1) = '1') OR -- J Less Than
+					((JCOND = "1001") AND FR(1) = '0') OR -- JGR
+					((JCOND = "1010") AND FR(0) = '0') OR -- J Less or eq to
+					((JCOND = "1011") AND FR(5) = '1') OR -- JOV
+					((JCOND = "1100") AND FR(5) = '0') OR -- JNOV
+					((JCOND = "1101") AND FR(9) = '1') OR -- J Negative
+					((JCOND = "1110") AND FR(6) = '1')    -- JDIVZ
+				) then
+					M1 <= SP;
+					RW <= '1';
+					M5 <= PC;
+					state := exec;
+				else
+					IncPC := '1';
+					state := fetch;
+				end if;
 			END IF;
 
 --========================================================================
 -- RTS 			PC <- Mem[SP]
 --========================================================================				
 			IF(IR(15 DOWNTO 10) = RTS) THEN
-
-				state := exec;
+				IncSP := '1';
+				state := rtsExec;
 			END IF;
 
 --========================================================================
@@ -684,7 +744,9 @@ begin
 -- EXEC CALL    Pilha <- PC e PC <- 16bit END :
 --========================================================================
 			IF(IR(15 DOWNTO 10) = CALL) THEN
-				
+				M1 <= PC;
+				RW <= '0';
+				LoadPC := '1';
 				state := fetch;
 			END IF;
 
@@ -692,7 +754,10 @@ begin
 -- EXEC RTS 			PC <- Mem[SP]
 --========================================================================
 			IF(IR(15 DOWNTO 10) = RTS) THEN
-				
+				M1 <= SP;
+				RW <= '0';
+				LoadPC := '1';
+
 				state := fetch;
 			END IF;
 			
@@ -706,6 +771,12 @@ begin
 				
 -- XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 				
+-- RTS EXEC --------------------------------------------------------------
+		when rtsExec =>
+			PONTO <= "100";
+
+			IncPC := '1';
+			state := fetch;
 				
 				
 				

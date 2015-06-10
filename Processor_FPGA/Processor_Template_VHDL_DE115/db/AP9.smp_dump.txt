@@ -1,7 +1,8 @@
 
 State Machine - |AP9|cpu:inst16|state
-Name state.halted state.exec state.decode state.fetch 
-state.fetch 0 0 0 0 
-state.decode 0 0 1 1 
-state.exec 0 1 0 1 
-state.halted 1 0 0 1 
+Name state.halted state.rtsExec state.exec state.decode state.fetch 
+state.fetch 0 0 0 0 0 
+state.decode 0 0 0 1 1 
+state.exec 0 0 1 0 1 
+state.rtsExec 0 1 0 0 1 
+state.halted 1 0 0 0 1 
